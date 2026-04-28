@@ -139,11 +139,12 @@
     .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
     .cal-day {
       aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-      border-radius: 50%; font-size: 13px; cursor: pointer; transition: transform 0.1s;
-      position: relative;
+      border-radius: 50%; font-size: 13px; cursor: pointer; transition: transform 0.15s;
+      position: relative; touch-action: manipulation; -webkit-touch-callout: none;
+      border: none; background: none; font-family: inherit;
     }
-    .cal-day:active { transform: scale(0.85); }
-    .cal-day.empty { cursor: default; }
+    .cal-day:active { transform: scale(0.80); }
+    .cal-day.empty { cursor: default; pointer-events: none; }
     .cal-day.today { border: 2.5px solid var(--primary); font-weight: 800; }
     .cal-day.period { background: #EF5350; color: white; font-weight: 700; }
     .cal-day.predicted { background: #FFCDD2; color: #B71C1C; }
@@ -736,48 +737,29 @@ function renderCalendar() {
     else if (fw.start && date >= fw.start && date <= fw.end)          cls += ' fertile';
     else if (predictedSet.has(ds))                                    cls += ' predicted';
 
-    html += `<div class="${cls}" onclick="tapDay('${ds}')">${d}</div>`;
+    html += `<button class="${cls}" ontouchend="tapDay(event,'${ds}')" onclick="tapDay(event,'${ds}')">${d}</button>`;
   }
   document.getElementById('cal-grid').innerHTML = html;
 }
 
 // Calendar tap → modal
-let activeDay = null;
-function tapDay(ds) {
-  activeDay = ds;
-  const date     = parse(ds);
-  const onPeriod = allPeriodDates().has(ds);
-  const log      = D.logs[ds];
+// Direct toggle — no modal, no delay
+let _lastTap = 0;
+function tapDay(e, ds) {
+  e.preventDefault();
+  // Deduplicate: ontouchend + onclick both fire on iOS, ignore the second
+  const now = Date.now();
+  if (now - _lastTap < 400) return;
+  _lastTap = now;
 
-  document.getElementById('modal-title').textContent = `📅 ${fmtLong(date)}`;
-
-  let infoHtml = '';
-  if (log) {
-    const flowMap = { light:'🩸 Nhẹ', medium:'🩸🩸 Vừa', heavy:'🩸🩸🩸 Nhiều', very_heavy:'💦 Rất nhiều' };
-    const moodMap = { happy:'😊 Vui', ok:'😐 Bình thường', sad:'😢 Buồn', anxious:'😰 Lo lắng', irritable:'😠 Cáu' };
-    if (log.flow)  infoHtml += `<p>💧 ${flowMap[log.flow]||log.flow}</p>`;
-    if (log.mood)  infoHtml += `<p>💭 ${moodMap[log.mood]||log.mood}</p>`;
-    if (log.note)  infoHtml += `<p style="color:#666;font-style:italic">"${log.note}"</p>`;
-  }
-  document.getElementById('modal-info').innerHTML = infoHtml ||
-    '<span style="color:#BDBDBD;font-size:13px">Chưa có ghi chú cho ngày này</span>';
-  document.getElementById('modal-body').innerHTML = '';
-
-  const actionBtn = document.getElementById('modal-action');
-  if (onPeriod) {
-    actionBtn.textContent = '🗑️ Xoá ngày kinh';
-    actionBtn.onclick = () => removePeriodDay(ds);
+  if (allPeriodDates().has(ds)) {
+    removePeriodDay(ds);
   } else {
-    actionBtn.textContent = '🩸 Đánh dấu kinh';
-    actionBtn.onclick = () => addPeriodDay(ds);
+    addPeriodDay(ds);
   }
-  document.getElementById('day-modal').classList.add('show');
 }
 
-function closeModal() { document.getElementById('day-modal').classList.remove('show'); }
-
 function addPeriodDay(ds) {
-  // Try extending existing period; else create new
   const date = parse(ds);
   let merged = false;
   for (const p of D.periods) {
@@ -793,7 +775,7 @@ function addPeriodDay(ds) {
     D.periods.push({ start: ds, end: ds });
     D.periods.sort((a,b) => a.start.localeCompare(b.start));
   }
-  save(); closeModal(); renderCalendar(); renderHome();
+  save(); renderCalendar(); renderHome();
   showToast('Đã đánh dấu ngày kinh 🩸');
 }
 
@@ -802,15 +784,17 @@ function removePeriodDay(ds) {
   D.periods = D.periods.filter(p => {
     const s = parse(p.start);
     const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
-    if (date < s || date > e) return true; // not in this period
-    if (p.start === ds && p.end === ds) return false; // single day → remove
+    if (date < s || date > e) return true;
+    if (p.start === ds && p.end === ds) return false;
     if (p.start === ds) { p.start = toStr(addD(date, 1)); return true; }
     if (p.end   === ds) { p.end   = toStr(addD(date,-1)); return true; }
-    return false; // middle day → drop whole period (simple)
+    return false;
   });
-  save(); closeModal(); renderCalendar(); renderHome();
+  save(); renderCalendar(); renderHome();
   showToast('Đã xoá ngày kinh');
 }
+
+function closeModal() { document.getElementById('day-modal').classList.remove('show'); }
 
 // ─── LOG ────────────────────────────────────────────────
 let todayLog = {};
