@@ -500,7 +500,7 @@
 
 <script>
 // ─── DATA ───────────────────────────────────────────────
-const KEY = 'chu_ky_app_v1';
+const KEY = 'chu_ky_v2';
 
 function load() {
   try { return JSON.parse(localStorage.getItem(KEY)) || blankData(); }
@@ -508,66 +508,99 @@ function load() {
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(D)); }
 function blankData() {
-  return { name: '', cycleLength: 28, periodLength: 5, periods: [], logs: {} };
+  // periodDays: mảng các string "YYYY-MM-DD" — đơn giản, không bug
+  return { name: '', cycleLength: 28, periodLength: 5, periodDays: [], logs: {} };
 }
 let D = load();
 
 // ─── DATE HELPERS ────────────────────────────────────────
-const toStr  = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const parse  = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
-const addD   = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
-const diffD  = (a, b) => Math.round((b - a) / 86400000);
-const fmtLong  = d => d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit', year:'numeric'});
-const fmtShort = d => d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'});
+// Dùng local time hoàn toàn, không dùng toISOString() để tránh lệch múi giờ
+function toStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function parse(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d); // local time
+}
+function addD(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function diffD(a, b) { return Math.round((b - a) / 86400000); }
+function fmtLong(d)  { return d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit', year:'numeric'}); }
+
+// ─── PERIOD DATA (model mới: lưu từng ngày riêng lẻ) ─────
+function getPeriodSet() {
+  return new Set(D.periodDays || []);
+}
+
+function togglePeriodDay(ds) {
+  if (!D.periodDays) D.periodDays = [];
+  const idx = D.periodDays.indexOf(ds);
+  if (idx >= 0) {
+    D.periodDays.splice(idx, 1);
+    showToast('Đã xoá ngày kinh');
+  } else {
+    D.periodDays.push(ds);
+    D.periodDays.sort(); // giữ thứ tự tăng dần
+    showToast('Đã đánh dấu ngày kinh 🩸');
+  }
+  save();
+  renderCalendar();
+  renderHome();
+}
+
+// Gom các ngày liên tiếp thành clusters để hiển thị lịch sử
+function getClusters() {
+  if (!D.periodDays || !D.periodDays.length) return [];
+  const sorted = [...D.periodDays].sort();
+  const clusters = [];
+  let start = sorted[0], prev = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = diffD(parse(prev), parse(sorted[i]));
+    if (gap <= 2) {
+      prev = sorted[i];
+    } else {
+      clusters.push({ start, end: prev, days: diffD(parse(start), parse(prev)) + 1 });
+      start = sorted[i]; prev = sorted[i];
+    }
+  }
+  clusters.push({ start, end: prev, days: diffD(parse(start), parse(prev)) + 1 });
+  return clusters;
+}
+
+function getLastPeriodStart() {
+  const c = getClusters();
+  return c.length ? c[c.length - 1].start : null;
+}
 
 // ─── CYCLE CALCULATIONS ──────────────────────────────────
-function lastPeriod() {
-  return D.periods.length ? D.periods[D.periods.length - 1] : null;
-}
-
 function nextPeriodDate() {
-  const lp = lastPeriod();
-  return lp ? addD(parse(lp.start), D.cycleLength) : null;
+  const ls = getLastPeriodStart();
+  return ls ? addD(parse(ls), D.cycleLength) : null;
 }
-
-function ovulationDate(npd) { return npd ? addD(npd, -14) : null; }
-
-function fertileWindow(npd) {
-  const ov = ovulationDate(npd);
-  return ov ? { start: addD(ov,-5), end: addD(ov,1) } : { start:null, end:null };
-}
-
-function allPeriodDates() {
-  const set = new Set();
-  D.periods.forEach(p => {
-    const s = parse(p.start);
-    const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
-    let cur = new Date(s);
-    while (cur <= e) { set.add(toStr(cur)); cur = addD(cur, 1); }
-  });
-  return set;
-}
-
-function todayIsOnPeriod() { return allPeriodDates().has(toStr(new Date())); }
 
 function currentPhase() {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const lp = lastPeriod();
-  if (!lp) return { phase: 'none', cycleDay: null };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const ls = getLastPeriodStart();
+  if (!ls) return { phase: 'none', cycleDay: null };
 
-  const lpStart = parse(lp.start);
-  const lpEnd   = lp.end ? parse(lp.end) : addD(lpStart, D.periodLength - 1);
+  const lpStart  = parse(ls);
+  const clusters = getClusters();
+  const lastC    = clusters[clusters.length - 1];
+  const lpEnd    = parse(lastC.end);
   const cycleDay = diffD(lpStart, today) + 1;
-  const npd      = nextPeriodDate();
-  const ov       = ovulationDate(npd);
-  const fw       = fertileWindow(npd);
+  const npd      = addD(lpStart, D.cycleLength);
+  const ov       = addD(npd, -14);
+  const fwStart  = addD(ov, -5);
+  const fwEnd    = addD(ov, 1);
 
-  if (today >= lpStart && today <= lpEnd) return { phase:'menstrual', cycleDay };
-  if (ov && toStr(today) === toStr(ov))   return { phase:'ovulation', cycleDay };
-  if (fw.start && today >= fw.start && today <= fw.end) return { phase:'fertile', cycleDay };
-  if (ov && today > ov && npd && today < npd) return { phase:'luteal', cycleDay };
-  if (today > lpEnd && fw.start && today < fw.start)   return { phase:'follicular', cycleDay };
-  return { phase:'none', cycleDay };
+  if (today >= lpStart && today <= lpEnd)  return { phase: 'menstrual', cycleDay };
+  if (toStr(today) === toStr(ov))          return { phase: 'ovulation',  cycleDay };
+  if (today >= fwStart && today <= fwEnd)  return { phase: 'fertile',    cycleDay };
+  if (today > ov && today < npd)           return { phase: 'luteal',     cycleDay };
+  if (today > lpEnd && today < fwStart)    return { phase: 'follicular', cycleDay };
+  return { phase: 'none', cycleDay };
 }
 
 // ─── HOME ────────────────────────────────────────────────
@@ -587,14 +620,14 @@ const PHASE = {
 };
 
 function renderHome() {
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const { phase, cycleDay } = currentPhase();
   const info = PHASE[phase] || PHASE.none;
   const npd  = nextPeriodDate();
+  const periodSet = getPeriodSet();
+  const todayStr  = toStr(today);
 
-  // Circle
-  const circle = document.getElementById('phase-circle');
-  circle.className = 'phase-circle ' + info.cls;
+  document.getElementById('phase-circle').className = 'phase-circle ' + info.cls;
   document.getElementById('ph-emoji').textContent = info.emoji;
   document.getElementById('ph-label').textContent = info.label;
 
@@ -602,94 +635,59 @@ function renderHome() {
     const diff = diffD(today, npd);
     document.getElementById('ph-days').textContent = Math.abs(diff);
     document.getElementById('ph-sub').textContent  = diff >= 0 ? 'ngày đến kỳ kinh' : 'ngày trễ kỳ';
+    document.getElementById('ic-next-days').textContent  = Math.abs(diff);
+    document.getElementById('ic-next-label').textContent = diff >= 0 ? 'ngày nữa' : 'ngày trễ';
   } else {
     document.getElementById('ph-days').textContent = '?';
     document.getElementById('ph-sub').textContent  = 'chưa có dữ liệu';
-  }
-
-  // Info cards
-  document.getElementById('ic-cycle-day').textContent = cycleDay || '—';
-  if (npd) {
-    const diff = diffD(today, npd);
-    document.getElementById('ic-next-days').textContent = Math.abs(diff);
-    document.getElementById('ic-next-label').textContent = diff >= 0 ? 'ngày nữa' : 'ngày trễ';
-  } else {
     document.getElementById('ic-next-days').textContent  = '—';
     document.getElementById('ic-next-label').textContent = 'ngày nữa';
   }
 
-  // Period button
+  document.getElementById('ic-cycle-day').textContent = cycleDay || '—';
+
   const btn = document.getElementById('period-btn');
-  if (todayIsOnPeriod()) {
-    btn.textContent = '✅ Đang trong kỳ kinh — nhấn để kết thúc';
+  if (periodSet.has(todayStr)) {
+    btn.textContent = '✅ Đang trong kỳ kinh — nhấn để bỏ';
     btn.className   = 'cta-btn cta-secondary';
   } else {
     btn.textContent = '🩸 Bắt đầu kỳ kinh hôm nay';
     btn.className   = 'cta-btn cta-primary';
   }
 
-  // Header
-  const name = D.name || 'bạn';
-  document.getElementById('header-sub').textContent = `Xin chào, ${name}! 🌸`;
+  document.getElementById('header-sub').textContent = `Xin chào, ${D.name || 'bạn'}! 🌸`;
 
-  // Insights
-  const cards = [];
-  cards.push({ icon: info.emoji, title: info.label, text: info.text });
-
+  const cards = [{ icon: info.emoji, title: info.label, text: info.text }];
   if (npd) {
     const diff = diffD(today, npd);
-    if (diff >= 0 && diff <= 3) {
+    if (diff >= 0 && diff <= 3)
       cards.push({ icon:'⚠️', title:'Sắp đến kỳ kinh!',
         text:`Kỳ kinh dự kiến sau ${diff} ngày nữa (${fmtLong(npd)}). Hãy chuẩn bị sẵn sàng nhé!` });
-    }
-    const fw = fertileWindow(npd);
-    if (fw.start && today >= fw.start && today <= fw.end) {
-      cards.push({ icon:'🌿', title:'Cửa sổ dễ thụ thai',
-        text:`Cơ thể đang ở trạng thái tốt nhất. Khả năng thụ thai cao trong những ngày này.` });
-    }
-    if (diff < 0) {
+    if (diff < 0)
       cards.push({ icon:'📌', title:'Kỳ kinh có thể trễ',
         text:`Kỳ kinh đã trễ ${Math.abs(diff)} ngày. Nếu kéo dài, hãy tham khảo ý kiến bác sĩ.` });
-    }
+    const ov = addD(npd, -14);
+    const fwS = addD(ov, -5), fwE = addD(ov, 1);
+    if (today >= fwS && today <= fwE)
+      cards.push({ icon:'🌿', title:'Cửa sổ dễ thụ thai',
+        text:'Cơ thể đang ở trạng thái tốt nhất. Khả năng thụ thai cao trong những ngày này.' });
   }
-
-  if (D.periods.length >= 2) {
+  if (getClusters().length >= 2) {
     const avg = avgCycle();
     const msg = avg < 21 ? '⚠️ Hơi ngắn — nên tham khảo bác sĩ.' :
                 avg > 35 ? '⚠️ Hơi dài — nên theo dõi thêm.' : '👍 Hoàn toàn bình thường!';
-    cards.push({ icon:'📊', title:'Chu kỳ trung bình của bạn',
-      text:`${avg} ngày / chu kỳ. ${msg}` });
+    cards.push({ icon:'📊', title:'Chu kỳ trung bình của bạn', text:`${avg} ngày / chu kỳ. ${msg}` });
   }
 
   document.getElementById('insights').innerHTML = cards.map(c => `
     <div class="insight-card">
       <div class="insight-icon">${c.icon}</div>
-      <div>
-        <div class="insight-title">${c.title}</div>
-        <div class="insight-text">${c.text}</div>
-      </div>
+      <div><div class="insight-title">${c.title}</div><div class="insight-text">${c.text}</div></div>
     </div>`).join('');
 }
 
 function togglePeriodToday() {
-  const ds = toStr(new Date());
-  if (todayIsOnPeriod()) {
-    // End or remove
-    const lp = lastPeriod();
-    if (lp) {
-      if (lp.start === ds) {
-        D.periods.pop();
-      } else {
-        lp.end = ds;
-      }
-    }
-    showToast('Đã kết thúc kỳ kinh 🌸');
-  } else {
-    D.periods.push({ start: ds, end: null });
-    D.periods.sort((a,b) => a.start.localeCompare(b.start));
-    showToast('Đã bắt đầu theo dõi kỳ kinh 🩸');
-  }
-  save(); renderHome(); renderCalendar();
+  togglePeriodDay(toStr(new Date()));
 }
 
 // ─── CALENDAR ───────────────────────────────────────────
@@ -707,91 +705,52 @@ function calShift(d) {
 function renderCalendar() {
   document.getElementById('cal-title').textContent = `${VN_M[calM]} ${calY}`;
 
-  const periodSet = allPeriodDates();
+  const periodSet = getPeriodSet();
   const npd = nextPeriodDate();
-  const ov  = ovulationDate(npd);
-  const fw  = fertileWindow(npd);
-
   const predictedSet = new Set();
+  let ovStr = null, fwStart = null, fwEnd = null;
+
   if (npd) {
     for (let i = 0; i < D.periodLength; i++) predictedSet.add(toStr(addD(npd, i)));
+    const ov = addD(npd, -14);
+    ovStr   = toStr(ov);
+    fwStart = toStr(addD(ov, -5));
+    fwEnd   = toStr(addD(ov,  1));
   }
 
   const todayStr = toStr(new Date());
   const firstDow = new Date(calY, calM, 1).getDay();
-  const lastDate  = new Date(calY, calM+1, 0).getDate();
+  const lastDate = new Date(calY, calM + 1, 0).getDate();
 
   let html = '';
-  for (let i = 0; i < firstDow; i++) html += '<div class="cal-day empty"></div>';
+  for (let i = 0; i < firstDow; i++) html += '<button class="cal-day empty" disabled></button>';
 
   for (let d = 1; d <= lastDate; d++) {
-    const date = new Date(calY, calM, d);
-    const ds   = toStr(date);
-    const dow  = date.getDay();
+    // Tạo date string trực tiếp từ số — không qua Date object để tránh mọi lỗi timezone
+    const ds  = `${calY}-${String(calM + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(calY, calM, d).getDay();
+
     let cls = 'cal-day';
-    if (dow === 0)     cls += ' sun';
+    if (dow === 0) cls += ' sun';
     if (ds === todayStr) cls += ' today';
 
-    if (periodSet.has(ds))                                            cls += ' period';
-    else if (ov && ds === toStr(ov))                                  cls += ' ovulation';
-    else if (fw.start && date >= fw.start && date <= fw.end)          cls += ' fertile';
-    else if (predictedSet.has(ds))                                    cls += ' predicted';
+    if (periodSet.has(ds))           cls += ' period';
+    else if (ds === ovStr)           cls += ' ovulation';
+    else if (fwStart && ds >= fwStart && ds <= fwEnd) cls += ' fertile';
+    else if (predictedSet.has(ds))   cls += ' predicted';
 
     html += `<button class="${cls}" ontouchend="tapDay(event,'${ds}')" onclick="tapDay(event,'${ds}')">${d}</button>`;
   }
   document.getElementById('cal-grid').innerHTML = html;
 }
 
-// Calendar tap → modal
-// Direct toggle — no modal, no delay
 let _lastTap = 0;
 function tapDay(e, ds) {
   e.preventDefault();
-  // Deduplicate: ontouchend + onclick both fire on iOS, ignore the second
   const now = Date.now();
-  if (now - _lastTap < 400) return;
+  if (now - _lastTap < 500) return; // chặn double-fire touchend+click
   _lastTap = now;
-
-  if (allPeriodDates().has(ds)) {
-    removePeriodDay(ds);
-  } else {
-    addPeriodDay(ds);
-  }
-}
-
-function addPeriodDay(ds) {
-  const date = parse(ds);
-  let merged = false;
-  for (const p of D.periods) {
-    const s = parse(p.start);
-    const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
-    if (date >= addD(s,-1) && date <= addD(e,1)) {
-      if (ds < p.start) p.start = ds;
-      if (!p.end || ds > p.end) p.end = ds;
-      merged = true; break;
-    }
-  }
-  if (!merged) {
-    D.periods.push({ start: ds, end: ds });
-    D.periods.sort((a,b) => a.start.localeCompare(b.start));
-  }
-  save(); renderCalendar(); renderHome();
-  showToast('Đã đánh dấu ngày kinh 🩸');
-}
-
-function removePeriodDay(ds) {
-  const date = parse(ds);
-  D.periods = D.periods.filter(p => {
-    const s = parse(p.start);
-    const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
-    if (date < s || date > e) return true;
-    if (p.start === ds && p.end === ds) return false;
-    if (p.start === ds) { p.start = toStr(addD(date, 1)); return true; }
-    if (p.end   === ds) { p.end   = toStr(addD(date,-1)); return true; }
-    return false;
-  });
-  save(); renderCalendar(); renderHome();
-  showToast('Đã xoá ngày kinh');
+  togglePeriodDay(ds);
 }
 
 function closeModal() { document.getElementById('day-modal').classList.remove('show'); }
@@ -807,9 +766,8 @@ function initLog() {
 
   document.querySelectorAll('.flow-btn, .symptom-btn, .mood-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('note-input').value = todayLog.note || '';
-
   if (todayLog.flow) document.querySelector(`.flow-btn[data-flow="${todayLog.flow}"]`)?.classList.add('selected');
-  (todayLog.symptoms || []).forEach(s => document.querySelector(`.symptom-btn[data-s="${s}"]`)?.classList.add('selected'));
+  todayLog.symptoms.forEach(s => document.querySelector(`.symptom-btn[data-s="${s}"]`)?.classList.add('selected'));
   if (todayLog.mood) document.querySelector(`.mood-btn[data-mood="${todayLog.mood}"]`)?.classList.add('selected');
 }
 
@@ -817,19 +775,15 @@ function pickFlow(f) {
   todayLog.flow = todayLog.flow === f ? null : f;
   document.querySelectorAll('.flow-btn').forEach(b => b.classList.toggle('selected', b.dataset.flow === todayLog.flow));
 }
-
 function toggleSym(s) {
   const idx = todayLog.symptoms.indexOf(s);
-  if (idx >= 0) todayLog.symptoms.splice(idx, 1);
-  else todayLog.symptoms.push(s);
+  if (idx >= 0) todayLog.symptoms.splice(idx, 1); else todayLog.symptoms.push(s);
   document.querySelector(`.symptom-btn[data-s="${s}"]`)?.classList.toggle('selected', idx < 0);
 }
-
 function pickMood(m) {
   todayLog.mood = todayLog.mood === m ? null : m;
   document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('selected', b.dataset.mood === todayLog.mood));
 }
-
 function saveLog() {
   todayLog.note = document.getElementById('note-input').value.trim();
   D.logs[toStr(new Date())] = { ...todayLog, symptoms: [...todayLog.symptoms] };
@@ -839,51 +793,55 @@ function saveLog() {
 
 // ─── HISTORY ────────────────────────────────────────────
 function avgCycle() {
-  if (D.periods.length < 2) return D.cycleLength;
+  const c = getClusters();
+  if (c.length < 2) return D.cycleLength;
   let tot = 0, cnt = 0;
-  for (let i = 1; i < D.periods.length; i++) {
-    const d = diffD(parse(D.periods[i-1].start), parse(D.periods[i].start));
-    if (d > 0 && d < 60) { tot += d; cnt++; }
+  for (let i = 1; i < c.length; i++) {
+    const gap = diffD(parse(c[i-1].start), parse(c[i].start));
+    if (gap > 0 && gap < 60) { tot += gap; cnt++; }
   }
-  return cnt ? Math.round(tot/cnt) : D.cycleLength;
-}
-
-function avgDuration() {
-  const w = D.periods.filter(p => p.end);
-  if (!w.length) return D.periodLength;
-  return Math.round(w.reduce((s,p) => s + diffD(parse(p.start), parse(p.end)) + 1, 0) / w.length);
+  return cnt ? Math.round(tot / cnt) : D.cycleLength;
 }
 
 function renderHistory() {
+  const clusters = getClusters();
+  const avgDur = clusters.length
+    ? Math.round(clusters.reduce((s, c) => s + c.days, 0) / clusters.length)
+    : D.periodLength;
+
   document.getElementById('stat-row').innerHTML = `
-    <div class="stat-card"><div class="sv">${D.periods.length}</div><div class="sl">Chu kỳ đã ghi</div></div>
+    <div class="stat-card"><div class="sv">${clusters.length}</div><div class="sl">Chu kỳ đã ghi</div></div>
     <div class="stat-card"><div class="sv">${avgCycle()}</div><div class="sl">Ngày TB mỗi chu kỳ</div></div>
-    <div class="stat-card"><div class="sv">${avgDuration()}</div><div class="sl">Ngày kinh trung bình</div></div>`;
+    <div class="stat-card"><div class="sv">${avgDur}</div><div class="sl">Ngày kinh trung bình</div></div>`;
 
   const list = document.getElementById('hist-list');
-  if (!D.periods.length) {
+  if (!clusters.length) {
     list.innerHTML = '<div class="empty-state"><div class="ei">📋</div><p>Chưa có dữ liệu chu kỳ.<br>Hãy bắt đầu theo dõi từ hôm nay!</p></div>';
     return;
   }
-  list.innerHTML = [...D.periods].reverse().map((p, ri) => {
-    const realIdx = D.periods.length - 1 - ri;
-    const s = parse(p.start);
-    const e = p.end ? parse(p.end) : null;
-    const dur = e ? diffD(s, e) + 1 : '?';
+  list.innerHTML = [...clusters].reverse().map((c, ri) => {
+    const realIdx = clusters.length - 1 - ri;
     return `<div class="cycle-item">
       <div class="cycle-dot">🩸</div>
       <div class="cycle-info">
-        <div class="cycle-dates">${fmtLong(s)}${e ? ' → ' + fmtLong(e) : ' → đang diễn ra'}</div>
-        <div class="cycle-dur">${dur} ngày kinh</div>
+        <div class="cycle-dates">${fmtLong(parse(c.start))} → ${fmtLong(parse(c.end))}</div>
+        <div class="cycle-dur">${c.days} ngày kinh</div>
       </div>
-      <button class="cycle-del" onclick="delPeriod(${realIdx})">✕</button>
+      <button class="cycle-del" onclick="delCluster(${realIdx})">✕</button>
     </div>`;
   }).join('');
 }
 
-function delPeriod(idx) {
+function delCluster(idx) {
   if (confirm('Xoá chu kỳ này?')) {
-    D.periods.splice(idx, 1);
+    const clusters = getClusters();
+    const c = clusters[idx];
+    // Xoá tất cả các ngày thuộc cluster này
+    const s = parse(c.start), e = parse(c.end);
+    D.periodDays = (D.periodDays || []).filter(ds => {
+      const d = parse(ds);
+      return d < s || d > e;
+    });
     save(); renderHistory(); renderHome(); renderCalendar();
     showToast('Đã xoá chu kỳ');
   }
@@ -895,17 +853,14 @@ function renderSettings() {
   document.getElementById('sv-cycle').textContent  = D.cycleLength;
   document.getElementById('sv-period').textContent = D.periodLength;
 }
-
 function adj(key, delta) {
   if (key === 'cycleLength')  D.cycleLength  = Math.max(20, Math.min(45, D.cycleLength  + delta));
   if (key === 'periodLength') D.periodLength = Math.max(1,  Math.min(10, D.periodLength + delta));
   save(); renderSettings(); renderHome(); renderCalendar();
 }
-
 document.getElementById('name-input').addEventListener('input', function() {
   D.name = this.value.trim(); save(); renderHome();
 });
-
 function doReset() {
   if (confirm('Xoá TẤT CẢ dữ liệu? Không thể hoàn tác!')) {
     localStorage.removeItem(KEY);
@@ -916,18 +871,16 @@ function doReset() {
 }
 
 // ─── NAVIGATION ─────────────────────────────────────────
-const TABS = ['home','calendar','log','history','settings'];
+const TABS   = ['home','calendar','log','history','settings'];
 const TITLES = { home:'Trang Chủ', calendar:'Lịch Chu Kỳ', log:'Nhật Ký', history:'Lịch Sử', settings:'Cài Đặt' };
-let curTab = 'home';
 
 function goTab(tab) {
   TABS.forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
     document.getElementById('nav-' + t).classList.toggle('active', t === tab);
   });
-  curTab = tab;
   document.getElementById('header-title').textContent = TITLES[tab];
-  if (tab === 'home')     renderHome();
+  if      (tab === 'home')     renderHome();
   else if (tab === 'calendar') renderCalendar();
   else if (tab === 'log')      initLog();
   else if (tab === 'history')  renderHistory();
@@ -941,13 +894,8 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
 }
-
-// ─── MODAL CLOSE ON OVERLAY ──────────────────────────────
-document.getElementById('day-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
 
 // ─── SERVICE WORKER ──────────────────────────────────────
 if ('serviceWorker' in navigator) {
