@@ -513,7 +513,7 @@ function blankData() {
 let D = load();
 
 // ─── DATE HELPERS ────────────────────────────────────────
-const toStr  = d => d.toISOString().split('T')[0];
+const toStr  = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const parse  = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
 const addD   = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
 const diffD  = (a, b) => Math.round((b - a) / 86400000);
