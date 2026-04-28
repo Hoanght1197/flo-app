@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chu Kỳ">
+  <meta name="theme-color" content="#C2185B">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-512.png">
+  <title>Theo Dõi Chu Kỳ 🌸</title>
+  <style>
+    :root {
+      --primary: #E91E8C;
+      --primary-dark: #C2185B;
+      --primary-light: #FCE4EC;
+      --period-color: #F44336;
+      --bg: #FFF5F8;
+      --card: #FFFFFF;
+      --text: #212121;
+      --text-secondary: #757575;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      height: 100dvh; overflow: hidden; user-select: none;
+    }
+    #app { height: 100dvh; display: flex; flex-direction: column; }
+
+    /* STATUS BAR */
+    .status-bar {
+      height: calc(var(--safe-top) + 0px);
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      flex-shrink: 0;
+    }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      padding: 12px 20px 18px;
+      color: white; flex-shrink: 0;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header p { font-size: 13px; opacity: 0.88; margin-top: 2px; }
+
+    /* CONTENT */
+    .content {
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding-bottom: calc(68px + var(--safe-bottom));
+    }
+
+    /* BOTTOM NAV */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: calc(58px + var(--safe-bottom));
+      background: white; border-top: 1px solid #F0F0F0;
+      display: flex; z-index: 100;
+      box-shadow: 0 -2px 16px rgba(0,0,0,0.08);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding-top: 8px; padding-bottom: calc(8px + var(--safe-bottom));
+      cursor: pointer; border: none; background: none;
+      color: #BDBDBD; font-size: 10px; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-item svg { width: 22px; height: 22px; margin-bottom: 3px; }
+
+    /* TAB PANELS */
+    .tab-panel { display: none; padding: 16px; }
+    .tab-panel.active { display: block; }
+
+    /* ===== HOME ===== */
+    .phase-wrap { display: flex; justify-content: center; margin: 12px 0 20px; }
+    .phase-circle {
+      width: 196px; height: 196px; border-radius: 50%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      position: relative; box-shadow: 0 8px 32px rgba(233,30,140,0.28);
+    }
+    .phase-circle .ph-emoji { font-size: 32px; margin-bottom: 4px; }
+    .phase-circle .ph-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.9); letter-spacing: 1px; text-transform: uppercase; }
+    .phase-circle .ph-days { font-size: 50px; font-weight: 800; color: white; line-height: 1; margin: 2px 0; }
+    .phase-circle .ph-sub { font-size: 12px; color: rgba(255,255,255,0.85); text-align: center; padding: 0 12px; }
+    .phase-menstrual { background: linear-gradient(135deg, #C62828, #EF5350, #F48FB1); }
+    .phase-follicular { background: linear-gradient(135deg, #E65100, #FB8C00, #FFB74D); }
+    .phase-fertile    { background: linear-gradient(135deg, #1B5E20, #388E3C, #66BB6A); }
+    .phase-ovulation  { background: linear-gradient(135deg, #006064, #00ACC1, #4DD0E1); }
+    .phase-luteal     { background: linear-gradient(135deg, #4A148C, #7B1FA2, #AB47BC); }
+    .phase-none       { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); }
+
+    .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .info-card {
+      background: white; border-radius: 16px; padding: 14px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center;
+    }
+    .info-card .ic-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+    .info-card .ic-value { font-size: 30px; font-weight: 800; color: var(--primary); margin: 4px 0 2px; }
+    .info-card .ic-sub { font-size: 11px; color: var(--text-secondary); }
+
+    .cta-btn {
+      width: 100%; padding: 16px; border-radius: 16px; border: none;
+      font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 14px;
+      font-family: inherit; transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .cta-btn:active { transform: scale(0.97); }
+    .cta-primary {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      color: white; box-shadow: 0 4px 16px rgba(233,30,140,0.35);
+    }
+    .cta-secondary { background: white; color: var(--primary); border: 2.5px solid var(--primary); }
+
+    .insight-card {
+      background: white; border-radius: 16px; padding: 14px 16px;
+      margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .insight-icon { font-size: 26px; flex-shrink: 0; margin-top: 1px; }
+    .insight-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+    .insight-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+    /* ===== CALENDAR ===== */
+    .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .cal-nav h2 { font-size: 17px; font-weight: 700; }
+    .cal-nav-btn {
+      width: 36px; height: 36px; border: none; background: white;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-size: 20px; color: var(--primary); font-weight: 700;
+    }
+    .cal-weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 6px; }
+    .cal-weekday { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-secondary); padding: 5px 0; }
+    .cal-weekday.sun { color: #EF5350; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+    .cal-day {
+      aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; font-size: 13px; cursor: pointer; transition: transform 0.1s;
+      position: relative;
+    }
+    .cal-day:active { transform: scale(0.85); }
+    .cal-day.empty { cursor: default; }
+    .cal-day.today { border: 2.5px solid var(--primary); font-weight: 800; }
+    .cal-day.period { background: #EF5350; color: white; font-weight: 700; }
+    .cal-day.predicted { background: #FFCDD2; color: #B71C1C; }
+    .cal-day.fertile { background: #C8E6C9; color: #1B5E20; }
+    .cal-day.ovulation { background: #B2EBF2; color: #006064; font-weight: 700; }
+    .cal-day.sun:not(.period):not(.fertile):not(.ovulation):not(.predicted) { color: #EF5350; }
+
+    .cal-legend {
+      display: flex; flex-wrap: wrap; gap: 8px 14px;
+      margin-top: 14px; padding: 12px 14px;
+      background: white; border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+    .legend-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .cal-hint { text-align: center; font-size: 12px; color: #BDBDBD; margin-top: 10px; }
+
+    /* ===== LOG ===== */
+    .log-section {
+      background: white; border-radius: 16px; padding: 14px 14px;
+      margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .section-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+
+    .flow-options { display: flex; gap: 8px; }
+    .flow-btn {
+      flex: 1; padding: 10px 4px; border: 2px solid #EEE;
+      border-radius: 12px; background: white; font-size: 10px;
+      font-family: inherit; cursor: pointer; text-align: center; transition: all 0.2s;
+    }
+    .flow-btn .fi { font-size: 16px; display: block; margin-bottom: 4px; }
+    .flow-btn.selected { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }
+
+    .symptom-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+    .symptom-btn {
+      padding: 10px 6px; border: 2px solid #EEE; border-radius: 12px;
+      background: white; font-size: 10px; font-family: inherit;
+      cursor: pointer; text-align: center; transition: all 0.2s; line-height: 1.4;
+    }
+    .symptom-btn .si { font-size: 20px; display: block; margin-bottom: 3px; }
+    .symptom-btn.selected { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }
+
+    .mood-grid { display: flex; gap: 6px; }
+    .mood-btn {
+      flex: 1; padding: 10px 4px; border: 2px solid #EEE; border-radius: 12px;
+      background: white; font-size: 10px; font-family: inherit;
+      cursor: pointer; text-align: center; transition: all 0.2s;
+    }
+    .mood-btn .mi { font-size: 22px; display: block; margin-bottom: 3px; }
+    .mood-btn.selected { border-color: var(--primary); background: var(--primary-light); }
+
+    .note-input {
+      width: 100%; border: 2px solid #EEE; border-radius: 12px;
+      padding: 12px; font-size: 14px; font-family: inherit;
+      resize: none; outline: none; transition: border-color 0.2s; color: var(--text);
+    }
+    .note-input:focus { border-color: var(--primary); }
+
+    /* ===== HISTORY ===== */
+    .stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+    .stat-card {
+      background: white; border-radius: 14px; padding: 14px 8px;
+      text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .stat-card .sv { font-size: 26px; font-weight: 800; color: var(--primary); }
+    .stat-card .sl { font-size: 10px; color: var(--text-secondary); margin-top: 3px; line-height: 1.3; }
+
+    .cycle-item {
+      background: white; border-radius: 16px; padding: 14px 16px;
+      margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      display: flex; align-items: center; gap: 14px;
+    }
+    .cycle-dot {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .cycle-info { flex: 1; }
+    .cycle-dates { font-size: 13px; font-weight: 600; }
+    .cycle-dur { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .cycle-del { background: none; border: none; font-size: 18px; cursor: pointer; color: #BDBDBD; padding: 4px; }
+
+    /* ===== SETTINGS ===== */
+    .settings-card {
+      background: white; border-radius: 16px; padding: 16px;
+      margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid #F5F5F5;
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { font-size: 14px; font-weight: 500; }
+    .stepper { display: flex; align-items: center; gap: 14px; }
+    .stepper-btn {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 2px solid var(--primary); background: none;
+      color: var(--primary); font-size: 18px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .stepper-val { font-size: 16px; font-weight: 700; color: var(--primary); min-width: 24px; text-align: center; }
+    .setting-input {
+      width: 100%; padding: 10px 14px; border: 2px solid #EEE;
+      border-radius: 12px; font-size: 16px; font-family: inherit;
+      outline: none; transition: border-color 0.2s; margin-top: 8px; color: var(--text);
+    }
+    .setting-input:focus { border-color: var(--primary); }
+    .install-box {
+      background: var(--primary-light); border-radius: 14px;
+      padding: 14px; margin-top: 10px;
+    }
+    .install-box p { font-size: 13px; color: #880E4F; line-height: 1.7; }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: calc(76px + var(--safe-bottom));
+      left: 50%; transform: translateX(-50%) translateY(16px);
+      background: #212121; color: white; padding: 11px 20px;
+      border-radius: 24px; font-size: 14px; opacity: 0;
+      transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 1000;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: white; border-radius: 24px 24px 0 0;
+      padding: 24px 20px calc(24px + var(--safe-bottom)); width: 100%;
+    }
+    .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .modal-info { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+    .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .empty-state .ei { font-size: 44px; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="status-bar"></div>
+  <div class="header">
+    <h1 id="header-title">Trang Chủ</h1>
+    <p id="header-sub">Chào mừng! 🌸</p>
+  </div>
+
+  <div class="content">
+
+    <!-- HOME -->
+    <div class="tab-panel active" id="tab-home">
+      <div class="phase-wrap">
+        <div class="phase-circle phase-none" id="phase-circle">
+          <div class="ph-emoji" id="ph-emoji">🌸</div>
+          <div class="ph-label" id="ph-label">CHU KỲ</div>
+          <div class="ph-days" id="ph-days">?</div>
+          <div class="ph-sub" id="ph-sub">ngày đến kỳ kinh</div>
+        </div>
+      </div>
+
+      <div class="info-row">
+        <div class="info-card">
+          <div class="ic-label">Ngày chu kỳ</div>
+          <div class="ic-value" id="ic-cycle-day">—</div>
+          <div class="ic-sub">hôm nay</div>
+        </div>
+        <div class="info-card">
+          <div class="ic-label">Kỳ tiếp theo</div>
+          <div class="ic-value" id="ic-next-days">—</div>
+          <div class="ic-sub" id="ic-next-label">ngày nữa</div>
+        </div>
+      </div>
+
+      <button class="cta-btn cta-primary" id="period-btn" onclick="togglePeriodToday()">
+        🩸 Bắt đầu kỳ kinh hôm nay
+      </button>
+
+      <div id="insights"></div>
+    </div>
+
+    <!-- CALENDAR -->
+    <div class="tab-panel" id="tab-calendar">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calShift(-1)">‹</button>
+        <h2 id="cal-title"></h2>
+        <button class="cal-nav-btn" onclick="calShift(1)">›</button>
+      </div>
+      <div class="cal-weekdays">
+        <div class="cal-weekday sun">CN</div>
+        <div class="cal-weekday">T2</div>
+        <div class="cal-weekday">T3</div>
+        <div class="cal-weekday">T4</div>
+        <div class="cal-weekday">T5</div>
+        <div class="cal-weekday">T6</div>
+        <div class="cal-weekday">T7</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#EF5350"></div>Kinh nguyệt</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#FFCDD2"></div>Dự đoán</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#C8E6C9"></div>Dễ thụ thai</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#B2EBF2"></div>Rụng trứng</div>
+      </div>
+      <p class="cal-hint">Chạm vào ngày để đánh dấu / xoá kỳ kinh</p>
+    </div>
+
+    <!-- LOG -->
+    <div class="tab-panel" id="tab-log">
+      <p id="log-date" style="font-size:13px;color:var(--text-secondary);margin-bottom:14px"></p>
+
+      <div class="log-section">
+        <div class="section-title">💧 Lưu lượng</div>
+        <div class="flow-options">
+          <button class="flow-btn" data-flow="light" onclick="pickFlow('light')"><span class="fi">🩸</span>Nhẹ</button>
+          <button class="flow-btn" data-flow="medium" onclick="pickFlow('medium')"><span class="fi">🩸🩸</span>Vừa</button>
+          <button class="flow-btn" data-flow="heavy" onclick="pickFlow('heavy')"><span class="fi">🩸🩸🩸</span>Nhiều</button>
+          <button class="flow-btn" data-flow="very_heavy" onclick="pickFlow('very_heavy')"><span class="fi">💦</span>Rất nhiều</button>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="section-title">🌡️ Triệu chứng</div>
+        <div class="symptom-grid">
+          <button class="symptom-btn" data-s="cramps" onclick="toggleSym('cramps')"><span class="si">😣</span>Đau bụng</button>
+          <button class="symptom-btn" data-s="headache" onclick="toggleSym('headache')"><span class="si">🤕</span>Đau đầu</button>
+          <button class="symptom-btn" data-s="backache" onclick="toggleSym('backache')"><span class="si">😓</span>Đau lưng</button>
+          <button class="symptom-btn" data-s="bloating" onclick="toggleSym('bloating')"><span class="si">🎈</span>Đầy hơi</button>
+          <button class="symptom-btn" data-s="nausea" onclick="toggleSym('nausea')"><span class="si">🤢</span>Buồn nôn</button>
+          <button class="symptom-btn" data-s="fatigue" onclick="toggleSym('fatigue')"><span class="si">😴</span>Mệt mỏi</button>
+          <button class="symptom-btn" data-s="breast" onclick="toggleSym('breast')"><span class="si">💔</span>Ngực đau</button>
+          <button class="symptom-btn" data-s="acne" onclick="toggleSym('acne')"><span class="si">😞</span>Mụn</button>
+          <button class="symptom-btn" data-s="insomnia" onclick="toggleSym('insomnia')"><span class="si">🌙</span>Mất ngủ</button>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="section-title">💭 Tâm trạng</div>
+        <div class="mood-grid">
+          <button class="mood-btn" data-mood="happy" onclick="pickMood('happy')"><span class="mi">😊</span>Vui</button>
+          <button class="mood-btn" data-mood="ok" onclick="pickMood('ok')"><span class="mi">😐</span>Bình thường</button>
+          <button class="mood-btn" data-mood="sad" onclick="pickMood('sad')"><span class="mi">😢</span>Buồn</button>
+          <button class="mood-btn" data-mood="anxious" onclick="pickMood('anxious')"><span class="mi">😰</span>Lo lắng</button>
+          <button class="mood-btn" data-mood="irritable" onclick="pickMood('irritable')"><span class="mi">😠</span>Cáu</button>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="section-title">📝 Ghi chú</div>
+        <textarea class="note-input" id="note-input" rows="3" placeholder="Ghi chú hôm nay..."></textarea>
+      </div>
+
+      <button class="cta-btn cta-primary" onclick="saveLog()">💾 Lưu nhật ký</button>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="tab-panel" id="tab-history">
+      <div class="stat-row" id="stat-row"></div>
+      <div class="section-title" style="margin-bottom:10px">Lịch sử chu kỳ</div>
+      <div id="hist-list"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-panel" id="tab-settings">
+      <div class="settings-card">
+        <div class="section-title" style="margin-bottom:6px">👤 Thông tin cá nhân</div>
+        <label style="font-size:12px;color:var(--text-secondary)">Tên của bạn</label>
+        <input type="text" class="setting-input" id="name-input" placeholder="Nhập tên...">
+      </div>
+
+      <div class="settings-card">
+        <div class="section-title" style="margin-bottom:0">⚙️ Chu kỳ của bạn</div>
+        <div class="setting-row">
+          <span class="setting-label">Độ dài chu kỳ TB</span>
+          <div class="stepper">
+            <button class="stepper-btn" onclick="adj('cycleLength',-1)">−</button>
+            <span class="stepper-val" id="sv-cycle">28</span>
+            <button class="stepper-btn" onclick="adj('cycleLength',1)">+</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Số ngày kinh TB</span>
+          <div class="stepper">
+            <button class="stepper-btn" onclick="adj('periodLength',-1)">−</button>
+            <span class="stepper-val" id="sv-period">5</span>
+            <button class="stepper-btn" onclick="adj('periodLength',1)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="section-title" style="margin-bottom:8px">📱 Cài lên iPhone</div>
+        <div class="install-box">
+          <p>1. Mở app này trong <strong>Safari</strong><br>
+          2. Bấm biểu tượng <strong>Chia sẻ</strong> (□ có mũi tên lên)<br>
+          3. Chọn <strong>"Thêm vào Màn hình chính"</strong><br>
+          4. Nhấn <strong>Thêm</strong> → Done! 🎉</p>
+        </div>
+      </div>
+
+      <button class="cta-btn" style="background:#FFEBEE;color:#C62828;border:none;font-size:14px" onclick="doReset()">
+        🗑️ Xóa tất cả dữ liệu
+      </button>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-home" onclick="goTab('home')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      Trang chủ
+    </button>
+    <button class="nav-item" id="nav-calendar" onclick="goTab('calendar')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+      Lịch
+    </button>
+    <button class="nav-item" id="nav-log" onclick="goTab('log')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+      Nhật ký
+    </button>
+    <button class="nav-item" id="nav-history" onclick="goTab('history')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3C8.03 3 4 7.03 4 12H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.95-2.05L6.7 18.3C8.34 19.94 10.55 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+      Lịch sử
+    </button>
+    <button class="nav-item" id="nav-settings" onclick="goTab('settings')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      Cài đặt
+    </button>
+  </nav>
+</div>
+
+<!-- DAY MODAL -->
+<div class="modal-overlay" id="day-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">📅 Ngày</div>
+    <div class="modal-info" id="modal-info"></div>
+    <div id="modal-body"></div>
+    <div class="modal-row">
+      <button class="cta-btn cta-secondary" onclick="closeModal()" style="margin:0">Đóng</button>
+      <button class="cta-btn cta-primary" id="modal-action" style="margin:0"></button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────
+const KEY = 'chu_ky_app_v1';
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || blankData(); }
+  catch { return blankData(); }
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(D)); }
+function blankData() {
+  return { name: '', cycleLength: 28, periodLength: 5, periods: [], logs: {} };
+}
+let D = load();
+
+// ─── DATE HELPERS ────────────────────────────────────────
+const toStr  = d => d.toISOString().split('T')[0];
+const parse  = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addD   = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
+const diffD  = (a, b) => Math.round((b - a) / 86400000);
+const fmtLong  = d => d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit', year:'numeric'});
+const fmtShort = d => d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'});
+
+// ─── CYCLE CALCULATIONS ──────────────────────────────────
+function lastPeriod() {
+  return D.periods.length ? D.periods[D.periods.length - 1] : null;
+}
+
+function nextPeriodDate() {
+  const lp = lastPeriod();
+  return lp ? addD(parse(lp.start), D.cycleLength) : null;
+}
+
+function ovulationDate(npd) { return npd ? addD(npd, -14) : null; }
+
+function fertileWindow(npd) {
+  const ov = ovulationDate(npd);
+  return ov ? { start: addD(ov,-5), end: addD(ov,1) } : { start:null, end:null };
+}
+
+function allPeriodDates() {
+  const set = new Set();
+  D.periods.forEach(p => {
+    const s = parse(p.start);
+    const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
+    let cur = new Date(s);
+    while (cur <= e) { set.add(toStr(cur)); cur = addD(cur, 1); }
+  });
+  return set;
+}
+
+function todayIsOnPeriod() { return allPeriodDates().has(toStr(new Date())); }
+
+function currentPhase() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const lp = lastPeriod();
+  if (!lp) return { phase: 'none', cycleDay: null };
+
+  const lpStart = parse(lp.start);
+  const lpEnd   = lp.end ? parse(lp.end) : addD(lpStart, D.periodLength - 1);
+  const cycleDay = diffD(lpStart, today) + 1;
+  const npd      = nextPeriodDate();
+  const ov       = ovulationDate(npd);
+  const fw       = fertileWindow(npd);
+
+  if (today >= lpStart && today <= lpEnd) return { phase:'menstrual', cycleDay };
+  if (ov && toStr(today) === toStr(ov))   return { phase:'ovulation', cycleDay };
+  if (fw.start && today >= fw.start && today <= fw.end) return { phase:'fertile', cycleDay };
+  if (ov && today > ov && npd && today < npd) return { phase:'luteal', cycleDay };
+  if (today > lpEnd && fw.start && today < fw.start)   return { phase:'follicular', cycleDay };
+  return { phase:'none', cycleDay };
+}
+
+// ─── HOME ────────────────────────────────────────────────
+const PHASE = {
+  menstrual:  { emoji:'🌺', label:'KINH NGUYỆT', cls:'phase-menstrual',
+    text:'Giai đoạn kinh nguyệt. Hãy nghỉ ngơi, uống nhiều nước và chăm sóc bản thân nhé 💕' },
+  follicular: { emoji:'🌱', label:'NANG TRỨNG', cls:'phase-follicular',
+    text:'Năng lượng đang tăng lên! Đây là thời gian tuyệt vời để bắt đầu điều mới ✨' },
+  fertile:    { emoji:'🌸', label:'DỄ THỤ THAI', cls:'phase-fertile',
+    text:'Đang trong cửa sổ dễ thụ thai nhất. Estrogen cao — bạn đang rất rạng rỡ! 💃' },
+  ovulation:  { emoji:'✨', label:'RỤNG TRỨNG', cls:'phase-ovulation',
+    text:'Hôm nay là ngày rụng trứng! Khả năng thụ thai cao nhất trong chu kỳ 🌟' },
+  luteal:     { emoji:'🌙', label:'HOÀNG THỂ', cls:'phase-luteal',
+    text:'Cơ thể đang chuẩn bị cho chu kỳ mới. Có thể hơi mệt — hãy dịu dàng với bản thân 🍵' },
+  none:       { emoji:'💫', label:'CHU KỲ CỦA BẠN', cls:'phase-none',
+    text:'Bắt đầu ghi lại chu kỳ để nhận những gợi ý cá nhân hoá riêng cho bạn! 💖' }
+};
+
+function renderHome() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const { phase, cycleDay } = currentPhase();
+  const info = PHASE[phase] || PHASE.none;
+  const npd  = nextPeriodDate();
+
+  // Circle
+  const circle = document.getElementById('phase-circle');
+  circle.className = 'phase-circle ' + info.cls;
+  document.getElementById('ph-emoji').textContent = info.emoji;
+  document.getElementById('ph-label').textContent = info.label;
+
+  if (npd) {
+    const diff = diffD(today, npd);
+    document.getElementById('ph-days').textContent = Math.abs(diff);
+    document.getElementById('ph-sub').textContent  = diff >= 0 ? 'ngày đến kỳ kinh' : 'ngày trễ kỳ';
+  } else {
+    document.getElementById('ph-days').textContent = '?';
+    document.getElementById('ph-sub').textContent  = 'chưa có dữ liệu';
+  }
+
+  // Info cards
+  document.getElementById('ic-cycle-day').textContent = cycleDay || '—';
+  if (npd) {
+    const diff = diffD(today, npd);
+    document.getElementById('ic-next-days').textContent = Math.abs(diff);
+    document.getElementById('ic-next-label').textContent = diff >= 0 ? 'ngày nữa' : 'ngày trễ';
+  } else {
+    document.getElementById('ic-next-days').textContent  = '—';
+    document.getElementById('ic-next-label').textContent = 'ngày nữa';
+  }
+
+  // Period button
+  const btn = document.getElementById('period-btn');
+  if (todayIsOnPeriod()) {
+    btn.textContent = '✅ Đang trong kỳ kinh — nhấn để kết thúc';
+    btn.className   = 'cta-btn cta-secondary';
+  } else {
+    btn.textContent = '🩸 Bắt đầu kỳ kinh hôm nay';
+    btn.className   = 'cta-btn cta-primary';
+  }
+
+  // Header
+  const name = D.name || 'bạn';
+  document.getElementById('header-sub').textContent = `Xin chào, ${name}! 🌸`;
+
+  // Insights
+  const cards = [];
+  cards.push({ icon: info.emoji, title: info.label, text: info.text });
+
+  if (npd) {
+    const diff = diffD(today, npd);
+    if (diff >= 0 && diff <= 3) {
+      cards.push({ icon:'⚠️', title:'Sắp đến kỳ kinh!',
+        text:`Kỳ kinh dự kiến sau ${diff} ngày nữa (${fmtLong(npd)}). Hãy chuẩn bị sẵn sàng nhé!` });
+    }
+    const fw = fertileWindow(npd);
+    if (fw.start && today >= fw.start && today <= fw.end) {
+      cards.push({ icon:'🌿', title:'Cửa sổ dễ thụ thai',
+        text:`Cơ thể đang ở trạng thái tốt nhất. Khả năng thụ thai cao trong những ngày này.` });
+    }
+    if (diff < 0) {
+      cards.push({ icon:'📌', title:'Kỳ kinh có thể trễ',
+        text:`Kỳ kinh đã trễ ${Math.abs(diff)} ngày. Nếu kéo dài, hãy tham khảo ý kiến bác sĩ.` });
+    }
+  }
+
+  if (D.periods.length >= 2) {
+    const avg = avgCycle();
+    const msg = avg < 21 ? '⚠️ Hơi ngắn — nên tham khảo bác sĩ.' :
+                avg > 35 ? '⚠️ Hơi dài — nên theo dõi thêm.' : '👍 Hoàn toàn bình thường!';
+    cards.push({ icon:'📊', title:'Chu kỳ trung bình của bạn',
+      text:`${avg} ngày / chu kỳ. ${msg}` });
+  }
+
+  document.getElementById('insights').innerHTML = cards.map(c => `
+    <div class="insight-card">
+      <div class="insight-icon">${c.icon}</div>
+      <div>
+        <div class="insight-title">${c.title}</div>
+        <div class="insight-text">${c.text}</div>
+      </div>
+    </div>`).join('');
+}
+
+function togglePeriodToday() {
+  const ds = toStr(new Date());
+  if (todayIsOnPeriod()) {
+    // End or remove
+    const lp = lastPeriod();
+    if (lp) {
+      if (lp.start === ds) {
+        D.periods.pop();
+      } else {
+        lp.end = ds;
+      }
+    }
+    showToast('Đã kết thúc kỳ kinh 🌸');
+  } else {
+    D.periods.push({ start: ds, end: null });
+    D.periods.sort((a,b) => a.start.localeCompare(b.start));
+    showToast('Đã bắt đầu theo dõi kỳ kinh 🩸');
+  }
+  save(); renderHome(); renderCalendar();
+}
+
+// ─── CALENDAR ───────────────────────────────────────────
+let calY = new Date().getFullYear(), calM = new Date().getMonth();
+const VN_M = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+              'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+function calShift(d) {
+  calM += d;
+  if (calM < 0)  { calM = 11; calY--; }
+  if (calM > 11) { calM = 0;  calY++; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  document.getElementById('cal-title').textContent = `${VN_M[calM]} ${calY}`;
+
+  const periodSet = allPeriodDates();
+  const npd = nextPeriodDate();
+  const ov  = ovulationDate(npd);
+  const fw  = fertileWindow(npd);
+
+  const predictedSet = new Set();
+  if (npd) {
+    for (let i = 0; i < D.periodLength; i++) predictedSet.add(toStr(addD(npd, i)));
+  }
+
+  const todayStr = toStr(new Date());
+  const firstDow = new Date(calY, calM, 1).getDay();
+  const lastDate  = new Date(calY, calM+1, 0).getDate();
+
+  let html = '';
+  for (let i = 0; i < firstDow; i++) html += '<div class="cal-day empty"></div>';
+
+  for (let d = 1; d <= lastDate; d++) {
+    const date = new Date(calY, calM, d);
+    const ds   = toStr(date);
+    const dow  = date.getDay();
+    let cls = 'cal-day';
+    if (dow === 0)     cls += ' sun';
+    if (ds === todayStr) cls += ' today';
+
+    if (periodSet.has(ds))                                            cls += ' period';
+    else if (ov && ds === toStr(ov))                                  cls += ' ovulation';
+    else if (fw.start && date >= fw.start && date <= fw.end)          cls += ' fertile';
+    else if (predictedSet.has(ds))                                    cls += ' predicted';
+
+    html += `<div class="${cls}" onclick="tapDay('${ds}')">${d}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+// Calendar tap → modal
+let activeDay = null;
+function tapDay(ds) {
+  activeDay = ds;
+  const date     = parse(ds);
+  const onPeriod = allPeriodDates().has(ds);
+  const log      = D.logs[ds];
+
+  document.getElementById('modal-title').textContent = `📅 ${fmtLong(date)}`;
+
+  let infoHtml = '';
+  if (log) {
+    const flowMap = { light:'🩸 Nhẹ', medium:'🩸🩸 Vừa', heavy:'🩸🩸🩸 Nhiều', very_heavy:'💦 Rất nhiều' };
+    const moodMap = { happy:'😊 Vui', ok:'😐 Bình thường', sad:'😢 Buồn', anxious:'😰 Lo lắng', irritable:'😠 Cáu' };
+    if (log.flow)  infoHtml += `<p>💧 ${flowMap[log.flow]||log.flow}</p>`;
+    if (log.mood)  infoHtml += `<p>💭 ${moodMap[log.mood]||log.mood}</p>`;
+    if (log.note)  infoHtml += `<p style="color:#666;font-style:italic">"${log.note}"</p>`;
+  }
+  document.getElementById('modal-info').innerHTML = infoHtml ||
+    '<span style="color:#BDBDBD;font-size:13px">Chưa có ghi chú cho ngày này</span>';
+  document.getElementById('modal-body').innerHTML = '';
+
+  const actionBtn = document.getElementById('modal-action');
+  if (onPeriod) {
+    actionBtn.textContent = '🗑️ Xoá ngày kinh';
+    actionBtn.onclick = () => removePeriodDay(ds);
+  } else {
+    actionBtn.textContent = '🩸 Đánh dấu kinh';
+    actionBtn.onclick = () => addPeriodDay(ds);
+  }
+  document.getElementById('day-modal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('day-modal').classList.remove('show'); }
+
+function addPeriodDay(ds) {
+  // Try extending existing period; else create new
+  const date = parse(ds);
+  let merged = false;
+  for (const p of D.periods) {
+    const s = parse(p.start);
+    const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
+    if (date >= addD(s,-1) && date <= addD(e,1)) {
+      if (ds < p.start) p.start = ds;
+      if (!p.end || ds > p.end) p.end = ds;
+      merged = true; break;
+    }
+  }
+  if (!merged) {
+    D.periods.push({ start: ds, end: ds });
+    D.periods.sort((a,b) => a.start.localeCompare(b.start));
+  }
+  save(); closeModal(); renderCalendar(); renderHome();
+  showToast('Đã đánh dấu ngày kinh 🩸');
+}
+
+function removePeriodDay(ds) {
+  const date = parse(ds);
+  D.periods = D.periods.filter(p => {
+    const s = parse(p.start);
+    const e = p.end ? parse(p.end) : addD(s, D.periodLength - 1);
+    if (date < s || date > e) return true; // not in this period
+    if (p.start === ds && p.end === ds) return false; // single day → remove
+    if (p.start === ds) { p.start = toStr(addD(date, 1)); return true; }
+    if (p.end   === ds) { p.end   = toStr(addD(date,-1)); return true; }
+    return false; // middle day → drop whole period (simple)
+  });
+  save(); closeModal(); renderCalendar(); renderHome();
+  showToast('Đã xoá ngày kinh');
+}
+
+// ─── LOG ────────────────────────────────────────────────
+let todayLog = {};
+
+function initLog() {
+  const ds = toStr(new Date());
+  document.getElementById('log-date').textContent = `Nhật ký ngày ${fmtLong(new Date())}`;
+  todayLog = JSON.parse(JSON.stringify(D.logs[ds] || { flow:null, symptoms:[], mood:null, note:'' }));
+  if (!todayLog.symptoms) todayLog.symptoms = [];
+
+  document.querySelectorAll('.flow-btn, .symptom-btn, .mood-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('note-input').value = todayLog.note || '';
+
+  if (todayLog.flow) document.querySelector(`.flow-btn[data-flow="${todayLog.flow}"]`)?.classList.add('selected');
+  (todayLog.symptoms || []).forEach(s => document.querySelector(`.symptom-btn[data-s="${s}"]`)?.classList.add('selected'));
+  if (todayLog.mood) document.querySelector(`.mood-btn[data-mood="${todayLog.mood}"]`)?.classList.add('selected');
+}
+
+function pickFlow(f) {
+  todayLog.flow = todayLog.flow === f ? null : f;
+  document.querySelectorAll('.flow-btn').forEach(b => b.classList.toggle('selected', b.dataset.flow === todayLog.flow));
+}
+
+function toggleSym(s) {
+  const idx = todayLog.symptoms.indexOf(s);
+  if (idx >= 0) todayLog.symptoms.splice(idx, 1);
+  else todayLog.symptoms.push(s);
+  document.querySelector(`.symptom-btn[data-s="${s}"]`)?.classList.toggle('selected', idx < 0);
+}
+
+function pickMood(m) {
+  todayLog.mood = todayLog.mood === m ? null : m;
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('selected', b.dataset.mood === todayLog.mood));
+}
+
+function saveLog() {
+  todayLog.note = document.getElementById('note-input').value.trim();
+  D.logs[toStr(new Date())] = { ...todayLog, symptoms: [...todayLog.symptoms] };
+  save();
+  showToast('Đã lưu nhật ký hôm nay! 💕');
+}
+
+// ─── HISTORY ────────────────────────────────────────────
+function avgCycle() {
+  if (D.periods.length < 2) return D.cycleLength;
+  let tot = 0, cnt = 0;
+  for (let i = 1; i < D.periods.length; i++) {
+    const d = diffD(parse(D.periods[i-1].start), parse(D.periods[i].start));
+    if (d > 0 && d < 60) { tot += d; cnt++; }
+  }
+  return cnt ? Math.round(tot/cnt) : D.cycleLength;
+}
+
+function avgDuration() {
+  const w = D.periods.filter(p => p.end);
+  if (!w.length) return D.periodLength;
+  return Math.round(w.reduce((s,p) => s + diffD(parse(p.start), parse(p.end)) + 1, 0) / w.length);
+}
+
+function renderHistory() {
+  document.getElementById('stat-row').innerHTML = `
+    <div class="stat-card"><div class="sv">${D.periods.length}</div><div class="sl">Chu kỳ đã ghi</div></div>
+    <div class="stat-card"><div class="sv">${avgCycle()}</div><div class="sl">Ngày TB mỗi chu kỳ</div></div>
+    <div class="stat-card"><div class="sv">${avgDuration()}</div><div class="sl">Ngày kinh trung bình</div></div>`;
+
+  const list = document.getElementById('hist-list');
+  if (!D.periods.length) {
+    list.innerHTML = '<div class="empty-state"><div class="ei">📋</div><p>Chưa có dữ liệu chu kỳ.<br>Hãy bắt đầu theo dõi từ hôm nay!</p></div>';
+    return;
+  }
+  list.innerHTML = [...D.periods].reverse().map((p, ri) => {
+    const realIdx = D.periods.length - 1 - ri;
+    const s = parse(p.start);
+    const e = p.end ? parse(p.end) : null;
+    const dur = e ? diffD(s, e) + 1 : '?';
+    return `<div class="cycle-item">
+      <div class="cycle-dot">🩸</div>
+      <div class="cycle-info">
+        <div class="cycle-dates">${fmtLong(s)}${e ? ' → ' + fmtLong(e) : ' → đang diễn ra'}</div>
+        <div class="cycle-dur">${dur} ngày kinh</div>
+      </div>
+      <button class="cycle-del" onclick="delPeriod(${realIdx})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function delPeriod(idx) {
+  if (confirm('Xoá chu kỳ này?')) {
+    D.periods.splice(idx, 1);
+    save(); renderHistory(); renderHome(); renderCalendar();
+    showToast('Đã xoá chu kỳ');
+  }
+}
+
+// ─── SETTINGS ───────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('name-input').value = D.name || '';
+  document.getElementById('sv-cycle').textContent  = D.cycleLength;
+  document.getElementById('sv-period').textContent = D.periodLength;
+}
+
+function adj(key, delta) {
+  if (key === 'cycleLength')  D.cycleLength  = Math.max(20, Math.min(45, D.cycleLength  + delta));
+  if (key === 'periodLength') D.periodLength = Math.max(1,  Math.min(10, D.periodLength + delta));
+  save(); renderSettings(); renderHome(); renderCalendar();
+}
+
+document.getElementById('name-input').addEventListener('input', function() {
+  D.name = this.value.trim(); save(); renderHome();
+});
+
+function doReset() {
+  if (confirm('Xoá TẤT CẢ dữ liệu? Không thể hoàn tác!')) {
+    localStorage.removeItem(KEY);
+    D = blankData();
+    renderHome(); renderCalendar(); renderHistory(); renderSettings();
+    showToast('Đã xoá tất cả dữ liệu');
+  }
+}
+
+// ─── NAVIGATION ─────────────────────────────────────────
+const TABS = ['home','calendar','log','history','settings'];
+const TITLES = { home:'Trang Chủ', calendar:'Lịch Chu Kỳ', log:'Nhật Ký', history:'Lịch Sử', settings:'Cài Đặt' };
+let curTab = 'home';
+
+function goTab(tab) {
+  TABS.forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('nav-' + t).classList.toggle('active', t === tab);
+  });
+  curTab = tab;
+  document.getElementById('header-title').textContent = TITLES[tab];
+  if (tab === 'home')     renderHome();
+  else if (tab === 'calendar') renderCalendar();
+  else if (tab === 'log')      initLog();
+  else if (tab === 'history')  renderHistory();
+  else if (tab === 'settings') renderSettings();
+}
+
+// ─── TOAST ──────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ─── MODAL CLOSE ON OVERLAY ──────────────────────────────
+document.getElementById('day-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ─── SERVICE WORKER ──────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// ─── INIT ────────────────────────────────────────────────
+renderHome();
+renderCalendar();
+renderSettings();
+</script>
+</body>
+</html>
